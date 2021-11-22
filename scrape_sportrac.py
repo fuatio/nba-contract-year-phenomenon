@@ -13,30 +13,15 @@ import pandas as pd
 
 class ScrapeSportTrac:
     def __init__(self):
-        self.link = 'https://www.spotrac.com/nba/transactions/'
+        self.years = [2013, 2012, 2011, 2010]
         self.options = Options()
         self.options.add_argument('--headless')
         self.options.add_argument('--disable-gpu')
         self.driver = webdriver.Chrome(options=self.options)
     
-    def get_transaction_data(self):
-        soup = BeautifulSoup(self.driver.page_source, 'html.parser')
-        self.driver.close()
-        transactions = {'date' : [], 'player_name' : [], 'player_link' : [], 'transaction' : []}
-        for article in soup.find_all('article', {'class':'odd'}):
-            for span in article.find_all('span', {'class':'date'}):
-                transactions['date'].append(span.getText())
-            for div in article.find_all('div', {'class':'cnt'}):
-                for h3 in div.find_all('h3'):
-                    for player_link in h3.find_all('a', href=True):
-                        transactions['player_link'].append(player_link['href'])
-                    transactions['player_name'].append(h3.getText().split(',')[0])
-                for p in div.find_all('p'):
-                    transactions['transaction'].append(p.getText())
-        df = pd.DataFrame.from_dict(transactions)
-        df.to_csv('nba_transactions.csv',index=False)
-    
-    def scroll_down_transaction_page(self):
+        
+    def scroll_down_transaction_page(self, year):
+        self.link = 'https://www.spotrac.com/nba/transactions/' + str(year) + '/all/'
         self.driver.get(self.link)
         last_height = self.driver.execute_script("return document.body.scrollHeight")
         self.driver.find_element(By.CLASS_NAME, 'show-more').click()
@@ -56,14 +41,32 @@ class ScrapeSportTrac:
                     soup = BeautifulSoup(self.driver.page_source, 'html.parser')
                     last_date = soup.find_all('span', {'class' : 'date'})[-1].getText()
                     print(last_date)
-                if i == 51:
-                    break
+                # if i == 51:
+                #     break
             except:
                 self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);") #Scroll down to bottom
-
+                
+    def get_transaction_data(self, year):
+        soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+        transactions = {'date' : [], 'player_name' : [], 'player_link' : [], 'transaction' : []}
+        for article in soup.find_all('article', {'class':'odd'}):
+            for span in article.find_all('span', {'class':'date'}):
+                transactions['date'].append(span.getText())
+            for div in article.find_all('div', {'class':'cnt'}):
+                for h3 in div.find_all('h3'):
+                    for player_link in h3.find_all('a', href=True):
+                        transactions['player_link'].append(player_link['href'])
+                    transactions['player_name'].append(h3.getText().split(',')[0])
+                for p in div.find_all('p'):
+                    transactions['transaction'].append(p.getText())
+        df = pd.DataFrame.from_dict(transactions)
+        df.to_csv('nba_transactions_' + str(year) + '.csv',index=False)
+    
     def scrape_sportrac(self):
-        self.scroll_down_transaction_page()
-        self.get_transaction_data()
+        for year in self.years:
+            self.scroll_down_transaction_page(year)
+            self.get_transaction_data(year)
+        self.driver.close()
 
 if __name__ == '__main__':
     ScrapeSportTrac().scrape_sportrac()
