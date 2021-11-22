@@ -6,7 +6,7 @@ import re
 import random
 import time
 import string
-from sklearn.utils import shuffle
+# from sklearn.utils import shuffle
 from tqdm import tqdm
 
 #-----------------------------------------------------------------------------#
