@@ -20,7 +20,7 @@ class SportTracData:
         self.options.add_argument('--disable-gpu')
         self.driver = webdriver.Chrome(options=self.options)
         
-    def extract()
+    def extract(self):
         for year in self.years:
             self.scroll_down_transaction_page(year)
             self.get_transaction_data(year)
@@ -148,25 +148,49 @@ class SportTracData:
             - New Orleans (NOP) fully guaranteed salary for 2019-20 	
         
     '''
-    # df['team'] = None
-    # df['actioner'] = None
-    # df['action'] = None
-    # df['contract_offer'] = None
-    # df['contract_offer_details'] = None
+    df['team'] = None
+    df['actioner'] = None
+    df['action'] = None
+    df['contract_offer'] = None
+    df['contract_offer_details'] = None
     
     actions = {
         'Waived' : [
             ['action', 'team', 'contract_offer_details'], 
-            '(?P<action>.*) by (?P<team>.*\))(?P<contract_offer_details>.*)?'
+            '(?P<action>\w*) by (?P<team>.*\))(?P<contract_offer_details>.*)?'
             ],
-        'Signed' : [
+         # Declined $16.2 million Player Option with San Antonio (SAS) for 2017-18
+        'Signed|Declined' : [
             ['action', 'contract_offer', 'team', 'contract_offer_details'],
-            '(?P<action>.*) a (?P<contract_offer>.*) with (?P<team>.*\))(?P<contract_offer_details>.*)'
+            '(?P<action>\w*) (?P<contract_offer>.*) with (?P<team>.*\))(?P<contract_offer_details>.*)'
             ],
+        # Declined $16.2 million Player Option with San Antonio (SAS) for 2017-18
+        # 'Declined' : [
+        #     ['action', 'contract_offer', 'team', 'contract_offer_details'],
+        #     '(?P<action>\w*) (?P<contract_offer>.*) with (?P<team>.*\))(?P<contract_offer_details>.*)'
+        #     ],
+        # New York (NYK) declined $1.42 million option for 2019-20
+        # Charlotte (CHA) exercised $5.35 million option for 2020-21 
         'option' : [
             ['team', 'action', 'contract_offer'],
-            '(?P<team>.*\))\s(?P<action>\w*)\s(?P<contract_offer>.*option)']
+            '(?P<team>.*\))\s(?P<action>\w*)\s(?P<contract_offer>.*option)'],
+        # Sacramento (SAC) extended $6,265,631 Qualifying Offer; becomes Restricted Free Agent 
+        # Boston (BOS) declined $1,876,700 Qualifying Offer; becomes Unrestricted Free Agent 	
+        'Qualifying Offer' : [
+            ['team', 'action', 'contract_offer', 'contract_offer_details'],
+            '(?P<team>.*\))\s(?P<action>\w*)\s(?P<contract_offer>.*);\s(?P<contract_offer_details>.*)'],
+        'renounced' : [
+            ['team', 'action'],
+            '(?P<team>.*\))\s(?P<action>.*)'],
+        # New Orleans (NOP) guaranteed salary for 2019-20
+        # New Orleans (NOP) fully guaranteed salary for 2019-20
+        'guaranteed.*salary': [
+            ['team', 'action'],
+            '(?P<team>.*\))\s(?P<action>.*) for'],
         }
+    
+    df_empty = df[df['action'].isnull()]
+    df_not_empty = df[df['transaction'].str.contains('Declined',na=False, flags=re.IGNORECASE)]
     
     for k, v in actions.items():
         indices_to_change = df[df['transaction'].str.contains(k)].index.values
