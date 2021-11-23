@@ -85,16 +85,17 @@ class SportTracData:
         df['transaction'] = df['transaction'].str.strip()
         return df
     
-    # def get_team_names():
-    #     '''
-    #     Instead of manually creating the list of team names to extract from the transaction
-    #     field, pull all the team names from the syntax 'Waived by [team_name]' since
-    #     every team should have waived a player at least once in the past ten years. 
-    #     '''
-    #     df_subset = df[df['transaction'].str.contains('Waived by')]
-    #     teams = df_subset['transaction'].apply(lambda x: x.split('Waived by ')[1].split(r')')[0] + ')').unique()
-    #     teams = '|'.join(teams)
-    #     return teams
+    def get_team_names():
+        '''
+        Instead of manually creating the list of team names to extract from the transaction
+        field, pull all the team names from the syntax 'Waived by [team_name]' since
+        every team should have waived a player at least once in the past ten years. 
+        '''
+        df_subset = df[df['transaction'].str.contains('Waived by')]
+        teams = df_subset['transaction'].apply(lambda x: x.split('Waived by ')[1].split(r')')[0] + ')').unique()
+        teams = '|'.join(teams)
+        team_regex = '(' + ''.join(['\\' + letter if re.match('\(|\)', letter) else letter for letter in teams]) + ')'
+        return team_regex
         
     def transactions():
         '''
@@ -154,47 +155,52 @@ class SportTracData:
     df['contract_offer'] = None
     df['contract_offer_details'] = None
     
+    df = read_files()
+    df = clean_dataframe(df)
+    team_regex = get_team_names()
     actions = {
         'Waived' : [
             ['action', 'team', 'contract_offer_details'], 
             '(?P<action>\w*) by (?P<team>.*\))(?P<contract_offer_details>.*)?'
             ],
-         # Declined $16.2 million Player Option with San Antonio (SAS) for 2017-18
-        'Signed|Declined' : [
+        # Signed a two-way contract with Washington (WAS) - converted Standard contract
+        # Signed a 2 year $70.14 million veteran contract extension with Washington (WAS) - includes 2022-23 Player Option
+        # Signed with New York (NYK) for the remainder of 2012-2013
+        # Declined $16.2 million Player Option with San Antonio (SAS) for 2017-18
+        # Declined $25.1 million option with Sacramento (SAC) for 2019-20
+        # Declined player option for the 2012-2013 season; becomes an unrestricted free agent
+        # Declined a $1.4 million option for 2011-2012
+        '(Signed|Declined).*contract' : [
             ['action', 'contract_offer', 'team', 'contract_offer_details'],
             '(?P<action>\w*) (?P<contract_offer>.*) with (?P<team>.*\))(?P<contract_offer_details>.*)'
             ],
-        # Declined $16.2 million Player Option with San Antonio (SAS) for 2017-18
-        # 'Declined' : [
-        #     ['action', 'contract_offer', 'team', 'contract_offer_details'],
-        #     '(?P<action>\w*) (?P<contract_offer>.*) with (?P<team>.*\))(?P<contract_offer_details>.*)'
-        #     ],
         # New York (NYK) declined $1.42 million option for 2019-20
         # Charlotte (CHA) exercised $5.35 million option for 2020-21 
-        'option' : [
-            ['team', 'action', 'contract_offer'],
-            '(?P<team>.*\))\s(?P<action>\w*)\s(?P<contract_offer>.*option)'],
+        team_regex + '.*option' : [
+            ['action', 'contract_offer', 'team', 'contract_offer_details'],
+            '(?P<team>.*\))\s(?P<action>\w*)\s(?P<contract_offer>.*option)(?P<contract_offer_details>.*)'],
         # Sacramento (SAC) extended $6,265,631 Qualifying Offer; becomes Restricted Free Agent 
         # Boston (BOS) declined $1,876,700 Qualifying Offer; becomes Unrestricted Free Agent 	
-        'Qualifying Offer' : [
+        team_regex + '.*Qualifying Offer' : [
             ['team', 'action', 'contract_offer', 'contract_offer_details'],
             '(?P<team>.*\))\s(?P<action>\w*)\s(?P<contract_offer>.*);\s(?P<contract_offer_details>.*)'],
-        'renounced' : [
+        team_regex + '.*renounced' : [
             ['team', 'action'],
             '(?P<team>.*\))\s(?P<action>.*)'],
         # New Orleans (NOP) guaranteed salary for 2019-20
         # New Orleans (NOP) fully guaranteed salary for 2019-20
-        'guaranteed.*salary': [
+        team_regex + '.*guaranteed.*salary': [
             ['team', 'action'],
             '(?P<team>.*\))\s(?P<action>.*) for'],
         }
     
+    x ='\(' + team_regex  + '.*Qualifying Offer\)'
     df_empty = df[df['action'].isnull()]
-    df_not_empty = df[df['transaction'].str.contains('Declined',na=False, flags=re.IGNORECASE)]
+    df_not_empty = df[df['transaction'].str.contains('Signed',na=False, flags=re.IGNORECASE)]
     
     for k, v in actions.items():
         indices_to_change = df[df['transaction'].str.contains(k)].index.values
-        df.loc[indices_to_change, v[0]] = df.loc[indices_to_change, 'transaction'].str.extract(v[1])
+        df.loc[indices_to_change, v[0]] = df.loc[indices_to_change, 'transaction'].str.extract(v[1], expand=True)
     
     
     
