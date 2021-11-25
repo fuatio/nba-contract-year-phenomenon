@@ -85,6 +85,8 @@ class SportTracData:
         df['transaction'] = df['transaction'].str.strip()
         return df
     
+    import numpy as np
+    
     def get_team_names():
         '''
         Instead of manually creating the list of team names to extract from the transaction
@@ -96,6 +98,195 @@ class SportTracData:
         teams = '|'.join(teams)
         team_regex = '(' + ''.join(['\\' + letter if re.match('\(|\)', letter) else letter for letter in teams]) + ')'
         return team_regex
+    
+    def extract_transactions(action_type, columns, regex):
+        if isinstance(columns, list)==True:
+            for column in columns:
+                if column not in df.columns:
+                    df[column] = None
+        else:
+            if columns not in df.columns:
+                df[columns] = None
+        df['Action_Type'] = np.where(df['transaction'].str.contains(regex),
+                                     action_type,
+                                     df['Action_Type'])
+        
+        transaction_idx = df[df['Action_Type'] == action_type].index.values
+        
+        df.loc[transaction_idx, columns] = np.where(df.loc[transaction_idx, columns].isnull(), 
+                                                    df.loc[transaction_idx, 'transaction'].str.extract(regex, expand=False), 
+                                                    df.loc[transaction_idx, columns])
+        return df
+    
+    df = read_files()
+    df = clean_dataframe(df)
+    # df = df[0:1000]
+    df['Action_Type'] = None
+
+    team_regex = get_team_names()
+    
+    # Agreed to a 3 year $31.5 million contract with Milwaukee (MIL)
+    # Signed a contract with Golden State (GSW) - Exhibit 10
+    # Signed a 5 year $189.9 million maximum contract with Golden State (GSW)
+    df = extract_transactions('Signed a contract',
+                              ['Action_Details', 'Team'], 
+                              regex='^(?:Signed|Agreed) (?:a )?(.*?extension|.*?contract) with ' + team_regex)
+    
+    # Atlanta (ATL) exercised $2.6 million option for 2019-20
+    df = extract_transactions('Team Exercised Option',
+                              ['Team', 'Action_Details'],
+                              regex = '^' + team_regex + ' exercised ' + '(.*option)')
+    # Cleveland (CLE) declined $3.87 million option for 2020-21
+    df = extract_transactions('Team Declined Option',
+                              ['Team', 'Action_Details'],
+                              regex = '^' + team_regex + ' declined ' + '(.*option)')
+    
+    # Exercised $27.09 million option with Miami (MIA) for 2019-20
+    # Exercised $27.1 million Player Option with Charlotte (CHA) for 2020-21
+    # Exercised $4.25 million Player Option for the 2012-2013 season
+    df = extract_transactions('Player Exercised Option',
+                              ['Team', 'Action_Details'],
+                              regex = '^(?:Exercised|^Exercsied) (.*) (?:option|Option)(?: with )?' + team_regex + '?')
+    
+    # Declined $25.1 million option with Sacramento (SAC) for 2019-20
+    df = extract_transactions('Player Declined Option',
+                              ['Action_Details', 'Team'],
+                              regex = '^Declined (.*) option with ' + team_regex)
+    
+    # Washington (WAS) fully guaranteed salary for 2019-20
+    # Miami (MIA) guaranteed $1 million for 2019-20
+    df = extract_transactions('Team Guaranteed Salary',
+                              ['Team', 'Action_Details'],
+                              regex = '^' + team_regex + '.*guaranteed(?: salary)? (.*) for')
+    
+    # Milwaukee (MIL) extended $3,021,354 Qualifying Offer; becomes Restricted Free Agent
+    # Brooklyn (BKN) extended Qualifying Offer; becomes a Restricted Free Agent
+    df = extract_transactions('Team Extended Qualifying Offer',
+                              ['Team', 'Action_Details'],
+                              regex = '^' + team_regex + '.*extended (.*)(?:Qualifying Offer)')
+    
+    # Houston (HOU) declined Qualifying Offer; becomes Unrestricted Free Agent
+    # New Orleans (NOP) declined to extend Qualifying Offer; becomes Unrestricted Free Agent
+    # New York (NYK) declined $2,024,075 Qualifying Offer; becomes Unrestricted Free Agent
+    # Los Angeles (LAL) withdrew Qualifying Offer; becomes Unrestricted Free Agent
+    df = extract_transactions('Team Declined Qualifying Offer',
+                              ['Team', 'Action_Details'],
+                              regex = '^' + team_regex + '.*(?:declined|withdrew)(?:to extend )?(.*) (?:Qualifying Offer)')
+    
+    # Brooklyn (BKN) renounced their free-agent exception rights
+    df = extract_transactions('Team Renounced their free-agent exception rights',
+                              'Team',
+                              regex = '^' + team_regex + ' renounced')
+    
+    # Waived by Los Angeles (LAL)
+    df = extract_transactions('Team Waived Player',
+                              'Team',
+                              regex = 'Waived by ' + team_regex)
+    
+    
+    # Drafted by Orlando (ORL): Round 1 (#16 overall)
+    # Drafted 2nd Round by Miami (MIA): Round 2 (#32 overall)
+    df = extract_transactions('Team Drafted Player',
+                              ['Team', 'Action_Details'],
+                              regex = '^Drafted.*by ' + team_regex + ': (.*)')
+    
+    # Fined $2,000 for ejection from LAL-ORL game
+    df = extract_transactions('Player Fined',
+                              'Action_Details',
+                              regex = '^Fined (.*)')
+    
+    # Suspended 2 games (forfeit $379,374) for fighting during MIN-PHI game
+    # Suspended 6 games (forfeit $500,690) for failure to adhere to team policies, violation of team rules and continued insubordination
+    df = extract_transactions('Player Suspended',
+                              'Action_Details',
+                              regex = '^Suspended (.*)')
+    
+    # Traded to New Orleans (NOP) from Milwaukee (MIL) as part of a 3-team trade: Detroit (DET) traded  Stanley Johnson to New Orleans (NOP); Milwaukee (MIL) traded  Thon Maker to Detroit (DET); Milwaukee (MIL) traded 2021 2nd round pick, 2020 2nd round pick, 2020 2nd round pick and 2019 2nd round pick to New Orleans (NOP); New Orleans (NOP) traded  Nikola Mirotic to Milwaukee (MIL)
+    df = extract_transactions('Team Traded Player',
+                              ['Action_Details', 'Team'],
+                              regex = '^Traded (to.*) from ' + team_regex)
+    
+    # Released by Indiana (IND)
+    # Released from 10-day contract by Brooklyn (BKN)
+    df = extract_transactions('Team Released Player',
+                              'Team',
+                              regex = '^Released.*by ' + team_regex)
+    
+    check = df[df['Action_Type'].isnull()]
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    df = extract_transactions('Waived by Team',
+                              'Team',
+                              regex = '^(?:Waived by )' + team_regex)
+    
+    regex_team_1 = '(Suspended|Fined|Traded)|(^|by )' + team_regex
+    player_transactions = df[~df['transaction'].str.contains(regex_team_1)].index.values
+    team_transactions = df[df['transaction'].str.contains(regex_team_1)].index.values
+    
+    df.loc[player_transactions, 'Player_Action'] = True
+    df.loc[team_transactions, 'Player_Action'] = False
+    '''
+    Action Types:
+    - Player signed a contract
+        Signed a 2 year contract extension with Denver (DEN)
+        Signed a two-way contract with Charlotte (CHA) - converted Exhibit 10 contract
+        Signed a 2 year $70.14 million veteran contract extension with Washington (WAS) - includes 2022-23 Player Option
+        Signed a 3 year $100 million contract extension with Portland (POR)
+        
+        ^(Signed)
+        
+    - Team exercised 
+    'exercised'
+    'declined'
+    'withdrew|declined Qualifying Offer'
+    'renounced their free agent exception rights'
+    'extended Qualifying Offer'
+    'declined Qualifying Offer'
+    '''
+    df = extract_transactions(['Action', 'Action_Type', 'Team'], 
+                              player_transactions, 
+                              regex='^(Signed)(with ' + team_regex)
+    
+    df = extract_transactions(['Action', 'Team'], player_transactions, regex='^(Waived).*by ' + team_regex)
+    
+    # 
+    
+    df = extract_transactions(['Action', 'Team'], player_transactions, regex='^(\w*).*with ' + team_regex)
+    df = extract_transactions(['Action', 'Team'], team_transactions, regex = '^(\w*).*by ' + team_regex)
+    df = extract_transactions(['Team', 'Action'], team_transactions, regex='^' + team_regex + ' (.*?ed|Offer) ')
+    df = extract_transactions(['Action', 'Action_Details'], team_transactions, regex='(Fined).*for (.*)')
+    
+    check = df[df['transaction'].str.contains('Agreed')]
+    
+
+
+
+
+column = ['Action', 'Team']
+transactions = team_transactions    
+regex = '(Waived) by ' + team_regex
+    
+    df['Contract_Offer'] = df[player_transactions]['transaction'].str.extract('\w* (?:a? ?)(.*) with')
+    df['Contract_Offer_Details'] = df[player_transactions]['transaction'].str.extract('- (.*)')
+    
+    
+    df[['Action', 'Team']] = df.loc[team_transactions, 'transaction'].str.extract('(Waived) by ' + team_regex)
+    
+    (?P<action>\w*) by (?P<team>.*\))
+    
+    
+
+    
         
     def transactions():
         '''
