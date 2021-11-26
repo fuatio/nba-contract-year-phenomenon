@@ -9,6 +9,7 @@ from selenium.webdriver.chrome.options import Options
 import glob
 from bs4 import BeautifulSoup
 import pandas as pd
+import numpy as np
 import re
 
 class SportTracData:
@@ -68,9 +69,9 @@ class SportTracData:
         df = pd.DataFrame.from_dict(transactions)
         df.to_csv('data/extract/nba_transactions_' + str(year) + '.csv',index=False)
     
-    def transform():
-        df = read_files()
-        df = clean_dataframe(df)
+    # def transform():
+        # df = read_files()
+        # df = clean_dataframe(df)
         
     
     def read_files():
@@ -87,7 +88,7 @@ class SportTracData:
     
     import numpy as np
     
-    def get_team_names():
+    def get_team_names(df):
         '''
         Instead of manually creating the list of team names to extract from the transaction
         field, pull all the team names from the syntax 'Waived by [team_name]' since
@@ -99,7 +100,7 @@ class SportTracData:
         team_regex = '(' + ''.join(['\\' + letter if re.match('\(|\)', letter) else letter for letter in teams]) + ')'
         return team_regex
     
-    def extract_transactions(action_type, columns, regex):
+    def extract_transactions(df, action_type, columns, regex):
         if isinstance(columns, list)==True:
             for column in columns:
                 if column not in df.columns:
@@ -120,10 +121,8 @@ class SportTracData:
     
     df = read_files()
     df = clean_dataframe(df)
-    # df = df[0:1000]
     df['Action_Type'] = None
-
-    team_regex = get_team_names()
+    team_regex = get_team_names(df)
     
     # Agreed to a 3 year $31.5 million contract with Milwaukee (MIL)
     # Signed a contract with Golden State (GSW) - Exhibit 10
@@ -212,222 +211,8 @@ class SportTracData:
                               'Team',
                               regex = '^Released.*by ' + team_regex)
     
-    check = df[df['Action_Type'].isnull()]
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    df = extract_transactions('Waived by Team',
-                              'Team',
-                              regex = '^(?:Waived by )' + team_regex)
-    
-    regex_team_1 = '(Suspended|Fined|Traded)|(^|by )' + team_regex
-    player_transactions = df[~df['transaction'].str.contains(regex_team_1)].index.values
-    team_transactions = df[df['transaction'].str.contains(regex_team_1)].index.values
-    
-    df.loc[player_transactions, 'Player_Action'] = True
-    df.loc[team_transactions, 'Player_Action'] = False
-    '''
-    Action Types:
-    - Player signed a contract
-        Signed a 2 year contract extension with Denver (DEN)
-        Signed a two-way contract with Charlotte (CHA) - converted Exhibit 10 contract
-        Signed a 2 year $70.14 million veteran contract extension with Washington (WAS) - includes 2022-23 Player Option
-        Signed a 3 year $100 million contract extension with Portland (POR)
-        
-        ^(Signed)
-        
-    - Team exercised 
-    'exercised'
-    'declined'
-    'withdrew|declined Qualifying Offer'
-    'renounced their free agent exception rights'
-    'extended Qualifying Offer'
-    'declined Qualifying Offer'
-    '''
-    df = extract_transactions(['Action', 'Action_Type', 'Team'], 
-                              player_transactions, 
-                              regex='^(Signed)(with ' + team_regex)
-    
-    df = extract_transactions(['Action', 'Team'], player_transactions, regex='^(Waived).*by ' + team_regex)
-    
-    # 
-    
-    df = extract_transactions(['Action', 'Team'], player_transactions, regex='^(\w*).*with ' + team_regex)
-    df = extract_transactions(['Action', 'Team'], team_transactions, regex = '^(\w*).*by ' + team_regex)
-    df = extract_transactions(['Team', 'Action'], team_transactions, regex='^' + team_regex + ' (.*?ed|Offer) ')
-    df = extract_transactions(['Action', 'Action_Details'], team_transactions, regex='(Fined).*for (.*)')
-    
-    check = df[df['transaction'].str.contains('Agreed')]
-    
-
-
-
-
-column = ['Action', 'Team']
-transactions = team_transactions    
-regex = '(Waived) by ' + team_regex
-    
-    df['Contract_Offer'] = df[player_transactions]['transaction'].str.extract('\w* (?:a? ?)(.*) with')
-    df['Contract_Offer_Details'] = df[player_transactions]['transaction'].str.extract('- (.*)')
-    
-    
-    df[['Action', 'Team']] = df.loc[team_transactions, 'transaction'].str.extract('(Waived) by ' + team_regex)
-    
-    (?P<action>\w*) by (?P<team>.*\))
-    
-    
-
-    
-        
-    def transactions():
-        '''
-        < TEAM NAME >
-            - Use get_team_names() method to get team name variables and pull
-            
-        < DOLLAR AMOUNT >
-            - Use regex to pull dollar amounts
-            
-        < ACTIONER > 
-            - Was the action committed via the Player or the Team?
-        
-        < ACTION > 
-            - Use regex to pull what type of action was conducted
-            - signed / exercised / declined / extended
-            
-        < CONTRACT/OFFER > 
-            - Use regex to pull what type of offer/contract it is:
-                
-        < CONTRACT/OFFER DETAILS >
-        
-
-            
-        ----------------------------------------------------------------------
-        ##############
-        Player Actions
-        ##############
-        < ACTION > a <CONTRACT OFFER> with <TEAM > - <CONTRACT DETAILS> 
-            - Signed a 3 year $4.2 million contract with Charlotte (CHA) - $500k guaranteed 			
-            - Signed a two-way contract with Houston (HOU) - converted Exhibit 10 
-            - Signed a contract with Memphis (MEM) - Exhibit 10 		
-            
-            
-        Retired from Professional Basketball
-            
-        ##############
-        Team Actions
-        ##############
-        <TEAM > <ACTION> <CONTRACT/OFFER TYPE> for <YEAR>
-            - Charlotte (CHA) exercised $5.35 million option for 2020-21 
-            - Memphis (MEM) declined $8.93 million option for 2020-21 	
-        
-        <TEAM > <ACTION> <CONTRACT/OFFER TYPE>; <CONTRACT/OFFER TYPE DETAILS>
-            - Sacramento (SAC) extended $6,265,631 Qualifying Offer; becomes Restricted Free Agent 
-            - Boston (BOS) declined $1,876,700 Qualifying Offer; becomes Unrestricted Free Agent 				 
-				
-        <ACTION> by <TEAM >
-            - Waived by Boston (BOS) 	
-            
-        < TEAM > <ACTION> < YEAR >
-            - New Orleans (NOP) fully guaranteed salary for 2019-20 	
-        
-    '''
-    df['team'] = None
-    df['actioner'] = None
-    df['action'] = None
-    df['contract_offer'] = None
-    df['contract_offer_details'] = None
-    
-    df = read_files()
-    df = clean_dataframe(df)
-    team_regex = get_team_names()
-    actions = {
-        'Waived' : [
-            ['action', 'team', 'contract_offer_details'], 
-            '(?P<action>\w*) by (?P<team>.*\))(?P<contract_offer_details>.*)?'
-            ],
-        # Signed a two-way contract with Washington (WAS) - converted Standard contract
-        # Signed a 2 year $70.14 million veteran contract extension with Washington (WAS) - includes 2022-23 Player Option
-        # Signed with New York (NYK) for the remainder of 2012-2013
-        # Declined $16.2 million Player Option with San Antonio (SAS) for 2017-18
-        # Declined $25.1 million option with Sacramento (SAC) for 2019-20
-        # Declined player option for the 2012-2013 season; becomes an unrestricted free agent
-        # Declined a $1.4 million option for 2011-2012
-        '(Signed|Declined).*contract' : [
-            ['action', 'contract_offer', 'team', 'contract_offer_details'],
-            '(?P<action>\w*) (?P<contract_offer>.*) with (?P<team>.*\))(?P<contract_offer_details>.*)'
-            ],
-        # New York (NYK) declined $1.42 million option for 2019-20
-        # Charlotte (CHA) exercised $5.35 million option for 2020-21 
-        team_regex + '.*option' : [
-            ['action', 'contract_offer', 'team', 'contract_offer_details'],
-            '(?P<team>.*\))\s(?P<action>\w*)\s(?P<contract_offer>.*option)(?P<contract_offer_details>.*)'],
-        # Sacramento (SAC) extended $6,265,631 Qualifying Offer; becomes Restricted Free Agent 
-        # Boston (BOS) declined $1,876,700 Qualifying Offer; becomes Unrestricted Free Agent 	
-        team_regex + '.*Qualifying Offer' : [
-            ['team', 'action', 'contract_offer', 'contract_offer_details'],
-            '(?P<team>.*\))\s(?P<action>\w*)\s(?P<contract_offer>.*);\s(?P<contract_offer_details>.*)'],
-        team_regex + '.*renounced' : [
-            ['team', 'action'],
-            '(?P<team>.*\))\s(?P<action>.*)'],
-        # New Orleans (NOP) guaranteed salary for 2019-20
-        # New Orleans (NOP) fully guaranteed salary for 2019-20
-        team_regex + '.*guaranteed.*salary': [
-            ['team', 'action'],
-            '(?P<team>.*\))\s(?P<action>.*) for'],
-        }
-    
-    x ='\(' + team_regex  + '.*Qualifying Offer\)'
-    df_empty = df[df['action'].isnull()]
-    df_not_empty = df[df['transaction'].str.contains('Signed',na=False, flags=re.IGNORECASE)]
-    
-    for k, v in actions.items():
-        indices_to_change = df[df['transaction'].str.contains(k)].index.values
-        df.loc[indices_to_change, v[0]] = df.loc[indices_to_change, 'transaction'].str.extract(v[1], expand=True)
-    
-    
-    
-      '(?=.*assigned)(?=.*G league)':
-          ['assigned player to G league', 'assigned to G league',
-           'The (?P<team>.+?) assigned (?P<player>.+) to the'],
-          
-    
-    df.loc[df['transaction'].str.contains('Waived', flags=re.IGNORECASE), ['action','team', 'contract_offer_details']] = \
-        df[df['transaction'].str.contains('Waived', flags=re.IGNORECASE)]['transaction']\
-            .str.extract('(?P<action>.*) by (?P<team>.*\))(?P<action_details>.*)?')
-    
-    df.loc[df['transaction'].str.contains('Signed', flags=re.IGNORECASE), 
-           ['action', 'contract_offer', 'team', 'contract_offer_details']] = \
-        df[df['transaction'].str.contains('Signed', flags=re.IGNORECASE)]['transaction']\
-            .str.extract('(?P<action>.*) a (?P<contract_offer>.*) with (?P<team>.*\))(?P<contract_offer_details>.*)')
-    
-    
-    
-    
-    
-    
-    
-for k,v in actions.items():
-    x.loc[x['transaction'].str.contains(k, flags=re.IGNORECASE), ['player','team']] = \
-        x[x['transaction'].str.contains(k, flags=re.IGNORECASE)]['transaction'].str.extract(v[2])
-    
-for k, v in actions.items():
-    x['team_action'] = \
-        np.where(x['transaction'].str.contains(k, flags=re.IGNORECASE), v[0], x['team_action'])
-    
-    
-    
-    
-    
-    
+    player_links = df['player_link'].drop_duplicates().tolist()
     
     
     
